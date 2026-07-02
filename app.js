@@ -24,25 +24,23 @@ const esc = (s) => (s ?? "").toString().replace(/[&<>"]/g, c => ({"&":"&amp;","<
 
 // ============================================================
 // AUTENTIMINE
+// Kasutame onAuthStateChange't ainsa allikana. Supabase kutsub selle
+// kohe pärast lehe laadimist "INITIAL_SESSION" sündmusega, nii et
+// getSession()-t pole vaja ja väldime lukustumist.
 // ============================================================
-async function refreshAuth() {
-  let session = null;
-  try {
-    // Turvavõrk: kui getSession ei vasta 5 sekundi jooksul, jätkame ilma seansita.
-    const result = await Promise.race([
-      supa.auth.getSession(),
-      new Promise((resolve) => setTimeout(() => resolve({ data:{ session:null }, __timeout:true }), 5000))
-    ]);
-    if (result.__timeout) console.warn("getSession timed out");
-    session = result.data?.session ?? null;
-  } catch (e) {
-    console.error("auth error:", e);
-  }
+function applySession(session) {
   hide($("loading"));
-  if (session) { hide($("login")); show($("appwrap")); await load(); }
+  if (session) { hide($("login")); show($("appwrap")); load(); }
   else { show($("login")); hide($("appwrap")); }
 }
-supa.auth.onAuthStateChange(() => refreshAuth());
+
+supa.auth.onAuthStateChange((_event, session) => applySession(session));
+
+// Turvavõrk: kui onAuthStateChange mingil põhjusel 5 sek jooksul
+// ei tulistanud, näitame vähemalt sisselogimise ekraani, mitte tühja lehte.
+setTimeout(() => {
+  if (!$("loading").classList.contains("hidden")) applySession(null);
+}, 5000);
 
 $("li-go").addEventListener("click", async () => {
   $("li-err").textContent = "";
@@ -318,5 +316,4 @@ $("ed-scan").addEventListener("click", startScanner);
 $("scan-cancel").addEventListener("click", stopScanner);
 $("scanner").addEventListener("click", (e) => { if (e.target.id === "scanner") stopScanner(); });
 
-// ---- käivitus ----
-refreshAuth();
+// ---- käivitus ---- (autentimist käivitab onAuthStateChange INITIAL_SESSION sündmusega automaatselt)
