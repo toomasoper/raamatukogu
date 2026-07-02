@@ -26,7 +26,18 @@ const esc = (s) => (s ?? "").toString().replace(/[&<>"]/g, c => ({"&":"&amp;","<
 // AUTENTIMINE
 // ============================================================
 async function refreshAuth() {
-  const { data:{ session } } = await supa.auth.getSession();
+  let session = null;
+  try {
+    // Turvavõrk: kui getSession ei vasta 5 sekundi jooksul, jätkame ilma seansita.
+    const result = await Promise.race([
+      supa.auth.getSession(),
+      new Promise((resolve) => setTimeout(() => resolve({ data:{ session:null }, __timeout:true }), 5000))
+    ]);
+    if (result.__timeout) console.warn("getSession timed out");
+    session = result.data?.session ?? null;
+  } catch (e) {
+    console.error("auth error:", e);
+  }
   hide($("loading"));
   if (session) { hide($("login")); show($("appwrap")); await load(); }
   else { show($("login")); hide($("appwrap")); }
