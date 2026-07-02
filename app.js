@@ -1,6 +1,22 @@
+// DIAGNOSTIKA — eemalda kui rakendus töötab
+(window.__diagLog || function(){})("4. app.js käivitus");
+try {
+  var supabaseModule = await import("https://esm.sh/@supabase/supabase-js@2");
+  (window.__diagLog || function(){})("5. Supabase moodul laetud");
+  var zxingModule = await import("https://esm.sh/@zxing/browser@0.1.5");
+  (window.__diagLog || function(){})("6. ZXing moodul laetud");
+  var configModule = await import("./config.js");
+  (window.__diagLog || function(){})("7. config.js laetud, URL=" + (configModule.SUPABASE_URL ? configModule.SUPABASE_URL.substring(0,30) : "PUUDU"));
+} catch (e) {
+  (window.__diagLog || function(){})("MOODULI VIGA: " + e.message);
+  throw e;
+}
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { BrowserMultiFormatReader } from "https://esm.sh/@zxing/browser@0.1.5";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
+
+(window.__diagLog || function(){})("8. Kõik importid tehtud");
 
 const supa = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
