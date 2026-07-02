@@ -27,6 +27,7 @@ const esc = (s) => (s ?? "").toString().replace(/[&<>"]/g, c => ({"&":"&amp;","<
 // ============================================================
 async function refreshAuth() {
   const { data:{ session } } = await supa.auth.getSession();
+  hide($("loading"));
   if (session) { hide($("login")); show($("appwrap")); await load(); }
   else { show($("login")); hide($("appwrap")); }
 }
