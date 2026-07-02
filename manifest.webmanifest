@@ -1,0 +1,14 @@
+{
+  "name": "Kodukogu",
+  "short_name": "Kodukogu",
+  "description": "Pere raamaturiiul — skanni, otsi ja jälgi, kelle käes raamat on.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#efece3",
+  "theme_color": "#211c17",
+  "lang": "et",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

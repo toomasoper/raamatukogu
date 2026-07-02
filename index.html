@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#211c17">
+<title>Kodukogu</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,560;9..144,600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#211c17; --paper:#efece3; --card:#faf8f2; --line:#ddd6c8;
+    --muted:#6f685c; --green:#35513f; --green-2:#2b4234; --ochre:#b3832f;
+    --radius:12px;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --serif:"Fraunces",Georgia,serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:var(--sans); color:var(--ink); background:var(--paper);
+    -webkit-font-smoothing:antialiased; line-height:1.45;
+  }
+  .hidden{display:none !important}
+
+  /* --- Header --- */
+  header{
+    background:var(--ink); color:var(--paper);
+    padding:calc(env(safe-area-inset-top) + 14px) 18px 14px;
+    display:flex; align-items:baseline; gap:12px; position:sticky; top:0; z-index:20;
+  }
+  .eyebrow{font-size:11px; letter-spacing:.22em; text-transform:uppercase; color:#b6ad9c}
+  header h1{font-family:var(--serif); font-weight:560; font-size:22px; margin:0; letter-spacing:.01em}
+  header .spacer{flex:1}
+  .linkbtn{background:none;border:none;color:#c9c0af;font:inherit;font-size:13px;cursor:pointer;padding:6px}
+  .linkbtn:hover{color:var(--paper)}
+
+  /* --- Toolbar --- */
+  .toolbar{
+    position:sticky; top:0; z-index:10; background:var(--paper);
+    border-bottom:1px solid var(--line); padding:12px 16px;
+    display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+  }
+  .toolbar .grow{flex:1 1 220px; min-width:0}
+  input,select,textarea{
+    font:inherit; color:var(--ink); background:var(--card);
+    border:1px solid var(--line); border-radius:10px; padding:10px 12px; width:100%;
+  }
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--green); outline-offset:0; border-color:var(--green)}
+  .toolbar select{width:auto; flex:0 0 auto}
+  .btn{
+    font:inherit; font-weight:560; cursor:pointer; border-radius:10px; padding:10px 16px;
+    border:1px solid var(--green); background:var(--green); color:#fff; white-space:nowrap;
+  }
+  .btn:hover{background:var(--green-2); border-color:var(--green-2)}
+  .btn.ghost{background:transparent; color:var(--green); }
+  .btn.ghost:hover{background:rgba(53,81,63,.08)}
+  .btn.danger{background:transparent;color:#8c3b2e;border-color:#d8b3ab}
+  .btn.danger:hover{background:rgba(140,59,46,.08)}
+
+  .meta{padding:6px 16px 0; color:var(--muted); font-size:13px}
+
+  /* --- Grid --- */
+  main{padding:14px 16px 40px}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:16px}
+  .card{cursor:pointer; text-align:left; background:none; border:none; padding:0; font:inherit; color:inherit}
+  .cover{
+    position:relative; aspect-ratio:2/3; border-radius:8px; overflow:hidden;
+    background:var(--card); box-shadow:0 1px 0 rgba(0,0,0,.06), 0 6px 16px rgba(33,28,23,.10);
+  }
+  .cover img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; z-index:1}
+  /* Spine placeholder for books with no cover art */
+  .spine{position:absolute; inset:0; padding:16px 14px; display:flex; flex-direction:column; color:#f4efe6}
+  .spine::before{content:""; position:absolute; top:0; bottom:0; left:10px; width:3px; background:rgba(255,255,255,.16)}
+  .spine .st{font-family:var(--serif); font-weight:560; font-size:16px; line-height:1.15; overflow:hidden; display:-webkit-box; -webkit-line-clamp:5; -webkit-box-orient:vertical}
+  .spine .sa{margin-top:auto; font-size:11px; opacity:.82; letter-spacing:.02em}
+  .badge{
+    position:absolute; top:8px; right:8px; font-size:10.5px; font-weight:600; letter-spacing:.02em;
+    background:var(--ochre); color:#241a05; padding:3px 7px; border-radius:999px; z-index:2;
+  }
+  .ctitle{font-family:var(--serif); font-weight:560; font-size:15px; margin:9px 0 1px; line-height:1.2}
+  .cauthor{color:var(--muted); font-size:12.5px}
+  .ctags{margin-top:4px; display:flex; flex-wrap:wrap; gap:4px}
+  .tag{font-size:10.5px; color:var(--green-2); background:rgba(53,81,63,.10); padding:2px 7px; border-radius:999px}
+
+  .empty{color:var(--muted); text-align:center; padding:60px 20px}
+  .empty p{margin:8px 0}
+
+  /* --- Modal / sheets --- */
+  .overlay{position:fixed; inset:0; background:rgba(33,28,23,.5); display:flex; align-items:flex-end; justify-content:center; z-index:40}
+  .sheet{
+    background:var(--paper); width:100%; max-width:560px; max-height:92vh; overflow:auto;
+    border-radius:16px 16px 0 0; padding:20px 20px calc(env(safe-area-inset-bottom) + 20px);
+  }
+  @media(min-width:640px){ .overlay{align-items:center} .sheet{border-radius:16px} }
+  .sheet h2{font-family:var(--serif); font-weight:560; margin:0 0 14px; font-size:20px}
+  .field{margin-bottom:12px}
+  .field label{display:block; font-size:12.5px; color:var(--muted); margin-bottom:5px}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .isbn-row{display:flex; gap:8px}
+  .isbn-row input{flex:1}
+  .previewwrap{display:flex; gap:14px; margin-bottom:14px}
+  .previewwrap .cover{width:96px; flex:0 0 96px}
+  .sheet-actions{display:flex; gap:10px; margin-top:8px}
+  .sheet-actions .grow{flex:1}
+  .note{font-size:12.5px; color:var(--muted); margin-top:2px}
+  .err{color:#8c3b2e; font-size:13px; margin-top:8px; min-height:1em}
+
+  /* --- Scanner --- */
+  #scanner .sheet{max-width:520px}
+  #scanvideo{width:100%; border-radius:12px; background:#000; aspect-ratio:4/3; object-fit:cover}
+
+  /* --- Login --- */
+  #login{max-width:360px; margin:14vh auto 0; padding:0 24px}
+  #login .brand{text-align:center; margin-bottom:26px}
+  #login .brand .eyebrow{color:var(--muted)}
+  #login .brand h1{font-family:var(--serif); font-weight:600; font-size:34px; margin:4px 0 0}
+  #login .field label{color:var(--muted)}
+
+  @media (prefers-reduced-motion:no-preference){
+    .sheet{animation:rise .18s ease}
+    @keyframes rise{from{transform:translateY(14px);opacity:.6}to{transform:none;opacity:1}}
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<section id="login" class="hidden">
+  <div class="brand">
+    <div class="eyebrow">pere raamaturiiul</div>
+    <h1>Kodukogu</h1>
+  </div>
+  <div class="field">
+    <label for="li-email">E-post</label>
+    <input id="li-email" type="email" autocomplete="username" inputmode="email">
+  </div>
+  <div class="field">
+    <label for="li-pass">Parool</label>
+    <input id="li-pass" type="password" autocomplete="current-password">
+  </div>
+  <button id="li-go" class="btn" style="width:100%">Logi sisse</button>
+  <div id="li-err" class="err"></div>
+</section>
+
+<!-- APP -->
+<div id="appwrap" class="hidden">
+  <header>
+    <div>
+      <div class="eyebrow">pere raamaturiiul</div>
+      <h1>Kodukogu</h1>
+    </div>
+    <div class="spacer"></div>
+    <button id="logout" class="linkbtn">Logi välja</button>
+  </header>
+
+  <div class="toolbar">
+    <div class="grow"><input id="q" type="search" placeholder="Otsi: pealkiri, autor, ISBN, žanr, sari, asukoht…"></div>
+    <select id="f-zanr"><option value="">Kõik žanrid</option></select>
+    <select id="f-seeria"><option value="">Kõik sarjad</option></select>
+    <select id="f-staatus">
+      <option value="">Kõik</option>
+      <option value="kodus">Kodus</option>
+      <option value="valjas">Väljas</option>
+    </select>
+    <button id="add" class="btn">+ Lisa raamat</button>
+  </div>
+  <div id="meta" class="meta"></div>
+
+  <main>
+    <div id="grid" class="grid"></div>
+    <div id="empty" class="empty hidden"></div>
+  </main>
+</div>
+
+<!-- EDITOR -->
+<div id="editor" class="overlay hidden">
+  <div class="sheet">
+    <h2 id="ed-title">Lisa raamat</h2>
+    <div class="previewwrap">
+      <div class="cover" id="ed-cover"></div>
+      <div style="flex:1">
+        <div class="field">
+          <label for="ed-isbn">ISBN</label>
+          <div class="isbn-row">
+            <input id="ed-isbn" inputmode="numeric" placeholder="nt 9789949…">
+            <button id="ed-scan" class="btn ghost" title="Skanni vöötkood">Skanni</button>
+          </div>
+          <div class="note" id="ed-lookup"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="field"><label for="ed-pealkiri">Pealkiri</label><input id="ed-pealkiri"></div>
+    <div class="field"><label for="ed-autor">Autor</label><input id="ed-autor"></div>
+    <div class="row2">
+      <div class="field"><label for="ed-zanr">Žanr</label><input id="ed-zanr" list="dl-zanr"></div>
+      <div class="field"><label for="ed-keel">Keel</label><input id="ed-keel" placeholder="et / en …"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="ed-seeria">Sari</label><input id="ed-seeria" list="dl-seeria"></div>
+      <div class="field"><label for="ed-seerianr">Nr sarjas</label><input id="ed-seerianr" inputmode="decimal"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="ed-kirjastus">Kirjastus</label><input id="ed-kirjastus"></div>
+      <div class="field"><label for="ed-aasta">Aasta</label><input id="ed-aasta" inputmode="numeric"></div>
+    </div>
+    <div class="field"><label for="ed-asukoht">Asukoht</label><input id="ed-asukoht" placeholder="nt elutoa riiul, maakodu"></div>
+
+    <div class="row2">
+      <div class="field"><label for="ed-laenatud">Laenatud kellele <span style="opacity:.7">(tühi = kodus)</span></label><input id="ed-laenatud"></div>
+      <div class="field"><label for="ed-laenkuup">Laenatud kuupäev</label><input id="ed-laenkuup" type="date"></div>
+    </div>
+    <div class="field"><label for="ed-kaane">Kaanepildi URL</label><input id="ed-kaane"></div>
+
+    <div id="ed-err" class="err"></div>
+    <div class="sheet-actions">
+      <button id="ed-save" class="btn grow">Salvesta</button>
+      <button id="ed-cancel" class="btn ghost">Loobu</button>
+    </div>
+    <div class="sheet-actions" id="ed-delrow" style="margin-top:10px">
+      <button id="ed-delete" class="btn danger grow">Kustuta raamat</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCANNER -->
+<div id="scanner" class="overlay hidden">
+  <div class="sheet">
+    <h2>Skanni vöötkood</h2>
+    <video id="scanvideo" playsinline muted></video>
+    <div class="note" id="scan-note" style="margin-top:10px">Suuna kaamera raamatu tagakaane vöötkoodile.</div>
+    <div class="sheet-actions" style="margin-top:14px">
+      <button id="scan-cancel" class="btn ghost grow">Sulge</button>
+    </div>
+  </div>
+</div>
+
+<datalist id="dl-zanr"></datalist>
+<datalist id="dl-seeria"></datalist>
+
+<script type="module" src="./app.js"></script>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+  }
+</script>
+</body>
+</html>
