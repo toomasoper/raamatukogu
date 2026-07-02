@@ -125,39 +125,39 @@
     @keyframes rise{from{transform:translateY(14px);opacity:.6}to{transform:none;opacity:1}}
   }
 </style>
+</head>
+<body>
+
 <div id="diag" style="display:none; position:fixed; inset:0; background:#efece3; color:#211c17; font:14px/1.5 -apple-system,sans-serif; padding:20px; z-index:999; overflow:auto; white-space:pre-wrap"></div>
 
 <script>
-  // Nähtav veadiagnostika telefonile, kui rakenduse skript ei käivitu.
   (function () {
-    var d = document.getElementById("diag");
     var lines = [];
     function report(msg) {
+      var d = document.getElementById("diag");
+      if (!d) return;
       lines.push(msg);
       d.textContent = "Tekkis viga rakenduse laadimisel:\n\n" + lines.join("\n") + "\n\nTee sellest ekraanist pilt ja saada see edasi.";
       d.style.display = "block";
     }
     window.addEventListener("error", function (e) {
-      report((e.filename ? e.filename.split("/").pop() + " — " : "") + e.message);
+      report((e.filename ? e.filename.split("/").pop() + " — " : "") + (e.message || "tundmatu viga"));
     });
     window.addEventListener("unhandledrejection", function (e) {
-      report("Promise viga: " + (e.reason && e.reason.message ? e.reason.message : e.reason));
+      var r = e.reason;
+      report("Promise viga: " + (r && r.message ? r.message : String(r)));
     });
-    // Kui 6 sekundi pärast pole ei sisselogimist ega rakendust nähtaval, on skript takerdunud.
     setTimeout(function () {
       var login = document.getElementById("login");
       var app = document.getElementById("appwrap");
       var loginShown = login && !login.classList.contains("hidden");
       var appShown = app && !app.classList.contains("hidden");
       if (!loginShown && !appShown && lines.length === 0) {
-        report("Rakenduse skript ei käivitunud (tundmatu põhjus — võimalik, et brauser blokeeris välise mooduli laadimise).");
+        report("Rakenduse skript ei käivitunud (tundmatu põhjus).");
       }
     }, 6000);
   })();
 </script>
-
-</head>
-<body>
 
 <!-- LOGIN -->
 <section id="login" class="hidden">
