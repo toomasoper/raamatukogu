@@ -263,12 +263,18 @@ async function lookupIsbn(isbn) {
 
 async function fillFromIsbn(isbn) {
   if (!isbn) return;
-  $("ed-lookup").textContent = "Otsin andmeid…";
+  $("ed-lookup").innerHTML = "Otsin andmeid…";
   const m = await lookupIsbn(isbn);
+  const clean = isbn.replace(/[^0-9Xx]/g, "");
   if (!m) {
-    $("ed-lookup").textContent = "Selle ISBN-i andmeid ei leitud — täida käsitsi.";
+    // Eesti raamatuid pole rahvusvahelistes andmebaasides sageli — pakume abi eesti kataloogidest
+    $("ed-lookup").innerHTML =
+      `Selle ISBN-i andmeid ei leitud. Proovi eesti kataloogist: ` +
+      `<a href="https://www.ester.ee/search~S1*est/?searchtype=i&searcharg=${clean}" target="_blank" rel="noopener">ESTER</a> · ` +
+      `<a href="https://erb.nlib.ee/?otsi=${clean}&f=isbn" target="_blank" rel="noopener">Rahvusraamatukogu</a>. ` +
+      `Kopeeri sealt pealkiri ja autor.`;
     // pakume vähemalt kaanepilti ISBN-i järgi
-    if (!$("ed-kaane").value) $("ed-kaane").value = `https://covers.openlibrary.org/b/isbn/${isbn.replace(/[^0-9Xx]/g,"")}-L.jpg`;
+    if (!$("ed-kaane").value) $("ed-kaane").value = `https://covers.openlibrary.org/b/isbn/${clean}-L.jpg`;
     updateEdCover();
     return;
   }
