@@ -21,6 +21,7 @@ const clothFor = (s) => {
   return CLOTHS[h % CLOTHS.length];
 };
 const esc = (s) => (s ?? "").toString().replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const PLACEHOLDER_TITLE = "(andmed puudu)";
 
 // ============================================================
 // AUTENTIMINE
@@ -114,10 +115,12 @@ function render() {
 function coverHtml(b) {
   const laen = b.laenatud_kellele
     ? `<span class="badge">Väljas · ${esc(b.laenatud_kellele)}</span>` : "";
+  const puudu = b.pealkiri === PLACEHOLDER_TITLE
+    ? `<span class="badge puudu">andmed puudu</span>` : "";
   // Selg on alati taustal; kaanepilt (kui on) katab selle. Katkise pildi peidame -> selg jääb nähtavale.
   const img = b.kaane_url
     ? `<img src="${esc(b.kaane_url)}" alt="" loading="lazy" onerror="this.style.display='none'">` : "";
-  return `<div class="cover">${spineHtml(b)}${img}${laen}</div>`;
+  return `<div class="cover">${spineHtml(b)}${img}${laen || puudu}</div>`;
 }
 function spineHtml(b) {
   return `<div class="spine" style="background:${clothFor(b.pealkiri||b.autor)}">
@@ -321,5 +324,131 @@ function stopScanner() {
 $("ed-scan").addEventListener("click", startScanner);
 $("scan-cancel").addEventListener("click", stopScanner);
 $("scanner").addEventListener("click", (e) => { if (e.target.id === "scanner") stopScanner(); });
+
+// ============================================================
+// KIIRLISA — kaamera lahti, iga skann salvestub kohe.
+// Andmed täidetakse hiljem rikastamise sammuga (etapp 1).
+// ============================================================
+let qsReader = null, qsControls = null;
+let qsCount = 0;
+let qsRecent = [];                 // uusimad üleval
+const qsSeen = new Map();          // debounce: kood -> viimane skannimise aeg
+const QS_DEBOUNCE_MS = 3000;
+
+// ISBN-13 (või ISBN-10) — vöötkood on peaaegu alati EAN-13 (algab 978/979)
+function isValidIsbn(code) {
+  const c = (code || "").replace(/[^0-9Xx]/g, "");
+  return c.length === 13 || c.length === 10;
+}
+
+// Lühikesed piiksud Web Audio kaudu — pole väliseid faile
+let audioCtx = null;
+function beep(freq, ms, gain = 0.05) {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = "sine"; o.frequency.value = freq;
+    g.gain.value = gain;
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start();
+    o.stop(audioCtx.currentTime + ms / 1000);
+  } catch (e) { /* mõnes brauseris pole heli lubatud enne kasutaja klõpsu — pole hädavajalik */ }
+}
+const beepOk  = () => beep(880, 90);
+const beepDup = () => { beep(330, 70); setTimeout(() => beep(330, 70), 110); };
+const beepErr = () => { beep(220, 180, 0.06); };
+
+function qsFlash(cls) {
+  const f = $("qs-flash");
+  f.classList.remove("ok", "dup", "err");
+  // väike triik: sunni reflow, et animatsioon uuesti käivituks
+  void f.offsetWidth;
+  f.classList.add(cls);
+  setTimeout(() => f.classList.remove(cls), 350);
+}
+
+function qsAddRow(isbn, cls, text) {
+  qsRecent.unshift({ isbn, cls, text });
+  qsRecent = qsRecent.slice(0, 8);
+  $("qs-list").innerHTML = qsRecent.map(r =>
+    `<div class="qs-row ${r.cls}"><span class="isbn">${esc(r.isbn)}</span><span class="st">${esc(r.text)}</span></div>`
+  ).join("");
+}
+
+async function qsHandleCode(code) {
+  const clean = code.replace(/[^0-9Xx]/g, "");
+  // debounce: sama kood <3s tagasi — ignoreeri
+  const last = qsSeen.get(clean);
+  const now = Date.now();
+  if (last && now - last < QS_DEBOUNCE_MS) return;
+  qsSeen.set(clean, now);
+
+  if (!isValidIsbn(clean)) {
+    qsFlash("err"); beepErr();
+    qsAddRow(clean || "(tundmatu)", "err", "pole ISBN");
+    return;
+  }
+
+  // Duplikaat kohalikus mälus? (kiireim kontroll, väldib serveri edasi-tagasi käiku)
+  if (books.some(b => b.isbn === clean)) {
+    qsFlash("dup"); beepDup();
+    qsAddRow(clean, "dup", "juba riiulis");
+    return;
+  }
+
+  // Kata katse: sisesta minimaalne kirje. ISBN-i unikaalsuspiirang püüab kinni
+  // ka võistlusolukorra (kui teine pereliige samal ajal sama raamatu lisab).
+  const rec = { isbn: clean, pealkiri: PLACEHOLDER_TITLE };
+  const { data, error } = await supa.from("raamat").insert(rec).select().single();
+  if (error) {
+    if (error.code === "23505") {
+      qsFlash("dup"); beepDup();
+      qsAddRow(clean, "dup", "juba riiulis");
+      // kui teine seade oli lisanud, uuenda oma kohalikku vaadet
+      await load();
+    } else {
+      qsFlash("err"); beepErr();
+      qsAddRow(clean, "err", "salvestus ebaõnnestus");
+      console.error(error);
+    }
+    return;
+  }
+
+  // Õnnestus
+  books.push(data);          // hoia kohalikult sünkroonis, et järgmine skann tunneks duplikaadi
+  qsCount += 1;
+  $("qs-count").textContent = qsCount;
+  qsFlash("ok"); beepOk();
+  qsAddRow(clean, "ok", "lisatud");
+}
+
+async function startQuickScan() {
+  qsCount = 0; qsRecent = []; qsSeen.clear();
+  $("qs-count").textContent = "0";
+  $("qs-list").innerHTML = "";
+  $("qs-hint").textContent = "Suuna kaamera vöötkoodile — järgmine skann käib automaatselt.";
+  show($("quickscan"));
+  try {
+    qsReader = new BrowserMultiFormatReader();
+    qsControls = await qsReader.decodeFromVideoDevice(undefined, $("qs-video"), (result) => {
+      if (result) qsHandleCode(result.getText());
+    });
+  } catch (e) {
+    $("qs-hint").textContent = "Kaamerale ligipääs ebaõnnestus. Kontrolli, et brauseril oleks kaamera luba.";
+  }
+}
+function stopQuickScan() {
+  try { qsControls?.stop(); } catch (e) {}
+  qsControls = null; qsReader = null;
+  hide($("quickscan"));
+  // Refresh kogu vaadet, et filterivalikud ja loendus uueneksid
+  fillFilterOptions();
+  render();
+}
+
+$("quickadd").addEventListener("click", startQuickScan);
+$("qs-close").addEventListener("click", stopQuickScan);
+$("quickscan").addEventListener("click", (e) => { if (e.target.id === "quickscan") stopQuickScan(); });
 
 // ---- käivitus ---- (autentimist käivitab onAuthStateChange INITIAL_SESSION sündmusega automaatselt)
