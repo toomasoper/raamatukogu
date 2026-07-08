@@ -2,7 +2,7 @@
 // Küsime failid ALATI kõigepealt võrgust. Puhver on tagavara ainult offline'i jaoks.
 // Nii ei kleepu vana katkine versioon lehe külge.
 
-const CACHE = "kodukogu-v2";
+const CACHE = "kodukogu-v3";
 
 self.addEventListener("install", (e) => {
   self.skipWaiting();
