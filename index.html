@@ -111,7 +111,30 @@
   .note a:hover{color:var(--green-2)}
   .err{color:#8c3b2e; font-size:13px; margin-top:8px; min-height:1em}
 
-  /* --- Scanner --- */
+  /* --- Quickscan --- */
+  #quickscan .sheet{max-width:520px}
+  .qs-videowrap{position:relative; border-radius:12px; overflow:hidden; background:#000; aspect-ratio:4/3}
+  #qs-video{width:100%; height:100%; object-fit:cover; display:block}
+  .qs-flash{position:absolute; inset:0; opacity:0; pointer-events:none; transition:opacity .35s ease}
+  .qs-flash.ok{opacity:.5; background:rgba(53,81,63,.75); transition-duration:0s}
+  .qs-flash.dup{opacity:.5; background:rgba(179,131,47,.75); transition-duration:0s}
+  .qs-flash.err{opacity:.5; background:rgba(140,59,46,.75); transition-duration:0s}
+  .qs-status{display:flex; align-items:baseline; gap:14px; margin:14px 2px 8px; flex-wrap:wrap}
+  .qs-num{font-family:var(--serif); font-weight:560; font-size:32px; color:var(--green); line-height:1}
+  .qs-num-lbl{color:var(--muted); font-size:13px}
+  .qs-hint{color:var(--muted); font-size:12.5px; flex:1 1 100%}
+  .qs-list{max-height:160px; overflow:auto; border-top:1px solid var(--line); padding-top:6px}
+  .qs-row{display:flex; align-items:center; gap:10px; padding:6px 2px; font-size:13px; border-bottom:1px solid rgba(0,0,0,.04)}
+  .qs-row:last-child{border-bottom:none}
+  .qs-row .isbn{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--ink); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .qs-row .st{font-size:11.5px; padding:2px 8px; border-radius:999px}
+  .qs-row.ok .st{background:rgba(53,81,63,.12); color:var(--green-2)}
+  .qs-row.dup .st{background:rgba(179,131,47,.15); color:#7a5a1a}
+  .qs-row.err .st{background:rgba(140,59,46,.12); color:#8c3b2e}
+
+  /* Ootel raamatu märge riiulis */
+  .badge.puudu{background:rgba(0,0,0,.35); color:#f4efe6}
+
   #scanner .sheet{max-width:520px}
   #scanvideo{width:100%; border-radius:12px; background:#000; aspect-ratio:4/3; object-fit:cover}
 
@@ -173,6 +196,7 @@
       <option value="kodus">Kodus</option>
       <option value="valjas">Väljas</option>
     </select>
+    <button id="quickadd" class="btn ghost">Kiirlisa</button>
     <button id="add" class="btn">+ Lisa raamat</button>
   </div>
   <div id="meta" class="meta"></div>
@@ -234,7 +258,26 @@
   </div>
 </div>
 
-<!-- SCANNER -->
+<!-- QUICKSCAN — kiirlisamine, kaamera jääb lahti mitmeks skanniks järjest -->
+<div id="quickscan" class="overlay hidden">
+  <div class="sheet">
+    <h2>Kiirlisa</h2>
+    <div class="qs-videowrap">
+      <video id="qs-video" playsinline muted></video>
+      <div id="qs-flash" class="qs-flash"></div>
+    </div>
+    <div class="qs-status">
+      <div><span class="qs-num" id="qs-count">0</span> <span class="qs-num-lbl">lisatud</span></div>
+      <div class="qs-hint" id="qs-hint">Suuna kaamera vöötkoodile — järgmine skann käib automaatselt.</div>
+    </div>
+    <div id="qs-list" class="qs-list"></div>
+    <div class="sheet-actions" style="margin-top:14px">
+      <button id="qs-close" class="btn grow">Valmis</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCANNER (üksikskann redaktori seest) -->
 <div id="scanner" class="overlay hidden">
   <div class="sheet">
     <h2>Skanni vöötkood</h2>
