@@ -63,6 +63,12 @@
 
   .meta{padding:6px 16px 0; color:var(--muted); font-size:13px}
 
+  /* --- Täida puuduvad: edenemisriba --- */
+  .fm-bar{display:flex; align-items:center; gap:12px; padding:10px 16px; background:var(--card); border-bottom:1px solid var(--line)}
+  .fm-track{flex:1; height:8px; background:rgba(0,0,0,.08); border-radius:999px; overflow:hidden}
+  .fm-fill{height:100%; width:0; background:var(--green); border-radius:999px; transition:width .25s ease}
+  .fm-text{font-size:13px; color:var(--muted); white-space:nowrap}
+
   /* --- Grid --- */
   main{padding:14px 16px 40px}
   .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:16px}
@@ -119,6 +125,27 @@
   .qs-flash.ok{opacity:.5; background:rgba(53,81,63,.75); transition-duration:0s}
   .qs-flash.dup{opacity:.5; background:rgba(179,131,47,.75); transition-duration:0s}
   .qs-flash.err{opacity:.5; background:rgba(140,59,46,.75); transition-duration:0s}
+  /* Suur keskele hüppav teade, mis ise kaob */
+  .qs-toast{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:8px; pointer-events:none; opacity:0; color:#fff; text-align:center;
+  }
+  .qs-toast.show{animation:qsToast 1.1s ease forwards}
+  .qs-toast .ico{
+    width:74px; height:74px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:42px; line-height:1; box-shadow:0 6px 20px rgba(0,0,0,.35);
+  }
+  .qs-toast.ok  .ico{background:#35513f}
+  .qs-toast.dup .ico{background:#b3832f}
+  .qs-toast.err .ico{background:#8c3b2e}
+  .qs-toast .txt{font-family:var(--serif); font-weight:560; font-size:19px; text-shadow:0 1px 6px rgba(0,0,0,.5)}
+  .qs-toast .sub{font-size:12.5px; opacity:.9; text-shadow:0 1px 6px rgba(0,0,0,.5); max-width:80%}
+  @keyframes qsToast{
+    0%{opacity:0; transform:scale(.7)}
+    15%{opacity:1; transform:scale(1)}
+    70%{opacity:1; transform:scale(1)}
+    100%{opacity:0; transform:scale(1)}
+  }
   .qs-status{display:flex; align-items:baseline; gap:14px; margin:14px 2px 8px; flex-wrap:wrap}
   .qs-num{font-family:var(--serif); font-weight:560; font-size:32px; color:var(--green); line-height:1}
   .qs-num-lbl{color:var(--muted); font-size:13px}
@@ -197,7 +224,13 @@
       <option value="valjas">Väljas</option>
     </select>
     <button id="quickadd" class="btn ghost">Kiirlisa</button>
+    <button id="fillmissing" class="btn ghost">Täida puuduvad</button>
     <button id="add" class="btn">+ Lisa raamat</button>
+  </div>
+  <div id="fm-bar" class="fm-bar hidden">
+    <div class="fm-track"><div id="fm-fill" class="fm-fill"></div></div>
+    <div class="fm-text" id="fm-text"></div>
+    <button id="fm-stop" class="linkbtn" style="color:var(--green)">Peata</button>
   </div>
   <div id="meta" class="meta"></div>
 
@@ -219,6 +252,9 @@
           <div class="isbn-row">
             <input id="ed-isbn" inputmode="numeric" placeholder="nt 9789949…">
             <button id="ed-scan" class="btn ghost" title="Skanni vöötkood">Skanni</button>
+          </div>
+          <div class="isbn-row" style="margin-top:6px">
+            <button id="ed-enrich" class="btn ghost" style="flex:1" title="Otsi andmed ISBN-i järgi kõigist allikatest">Täida andmed automaatselt</button>
           </div>
           <div class="note" id="ed-lookup"></div>
         </div>
@@ -265,6 +301,7 @@
     <div class="qs-videowrap">
       <video id="qs-video" playsinline muted></video>
       <div id="qs-flash" class="qs-flash"></div>
+      <div id="qs-toast" class="qs-toast"></div>
     </div>
     <div class="qs-status">
       <div><span class="qs-num" id="qs-count">0</span> <span class="qs-num-lbl">lisatud</span></div>
