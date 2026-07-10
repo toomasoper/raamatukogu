@@ -4,6 +4,32 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 
 const supa = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Kutsub Edge Functioni 'enrich', mis täidab raamatu andmed ISBN-i järgi.
+// Uuendab rea andmebaasis ja kohalikus massiivis. Vaikne — vead lähevad konsooli.
+async function enrichBook(row) {
+  if (!row?.isbn) return "vahele";
+  try {
+    const { data, error } = await supa.functions.invoke("enrich", { body: { isbn: row.isbn } });
+    if (error || !data?.leitud) return "ei leitud";
+    const b = data.book || {};
+    const upd = {};
+    // täidame ainult tühjad/placeholder väljad, käsitsi sisestatut ei kirjuta üle
+    if ((!row.pealkiri || row.pealkiri === PLACEHOLDER_TITLE) && b.pealkiri) upd.pealkiri = b.pealkiri;
+    for (const k of ["autor", "kirjastus", "aasta", "keel", "zanr", "kaane_url"]) {
+      if ((row[k] === null || row[k] === undefined || row[k] === "") && b[k]) upd[k] = b[k];
+    }
+    if (Object.keys(upd).length === 0) return "juba täidetud";
+    const { data: saved } = await supa.from("raamat").update(upd).eq("id", row.id).select().single();
+    if (saved) {
+      const i = books.findIndex((x) => x.id === row.id);
+      if (i >= 0) books[i] = saved;
+      render();
+      return "täidetud";
+    }
+    return "ei leitud";
+  } catch (e) { console.error("enrich error:", e); return "viga"; }
+}
+
 // ---- lühikäepidemed ----
 const $ = (id) => document.getElementById(id);
 const show = (el) => el.classList.remove("hidden");
@@ -296,6 +322,38 @@ async function fillFromIsbn(isbn) {
 
 $("ed-isbn").addEventListener("change", () => fillFromIsbn($("ed-isbn").value.trim()));
 
+// Redaktori nupp: täida väljad Edge Functioni kaudu (kõik allikad), näita enne salvestust
+$("ed-enrich").addEventListener("click", async () => {
+  const isbn = $("ed-isbn").value.trim();
+  if (!isbn) { $("ed-lookup").textContent = "Sisesta või skanni enne ISBN."; return; }
+  $("ed-lookup").textContent = "Otsin andmeid kõigist allikatest…";
+  try {
+    const { data, error } = await supa.functions.invoke("enrich", { body: { isbn } });
+    if (error || !data?.leitud) {
+      $("ed-lookup").innerHTML =
+        `Andmeid ei leitud. Proovi käsitsi: ` +
+        `<a href="https://www.ester.ee/search~S1*est/?searchtype=i&searcharg=${clean(isbn)}" target="_blank" rel="noopener">ESTER</a> · ` +
+        `<a href="https://www.apollo.ee/et/catalogsearch/result?q=${clean(isbn)}" target="_blank" rel="noopener">Apollo</a>`;
+      return;
+    }
+    const b = data.book || {};
+    const set = (id, val) => { if (val && (!$(id).value || $(id).value === PLACEHOLDER_TITLE)) $(id).value = val; };
+    set("ed-pealkiri", b.pealkiri);
+    set("ed-autor", b.autor);
+    set("ed-kirjastus", b.kirjastus);
+    set("ed-aasta", b.aasta);
+    set("ed-keel", b.keel);
+    set("ed-zanr", b.zanr);
+    set("ed-kaane", b.kaane_url);
+    $("ed-lookup").textContent = `Andmed täidetud (allikad: ${(data.allikad || []).join(", ") || "–"}). Kontrolli ja salvesta.`;
+    updateEdCover();
+  } catch (e) {
+    $("ed-lookup").textContent = "Rikastamine ebaõnnestus: " + e.message;
+  }
+});
+
+const clean = (s) => (s || "").replace(/[^0-9Xx]/g, "");
+
 // ============================================================
 // SKANNER (ZXing)
 // ============================================================
@@ -368,6 +426,17 @@ function qsFlash(cls) {
   setTimeout(() => f.classList.remove(cls), 350);
 }
 
+// Suur keskele hüppav teade, mis ise kaob
+const QS_ICON = { ok: "✓", dup: "!", err: "✕" };
+function qsToast(cls, txt, sub = "") {
+  const t = $("qs-toast");
+  t.className = "qs-toast";
+  void t.offsetWidth;
+  t.innerHTML = `<div class="ico">${QS_ICON[cls]}</div><div class="txt">${esc(txt)}</div>` +
+    (sub ? `<div class="sub">${esc(sub)}</div>` : "");
+  t.classList.add(cls, "show");
+}
+
 function qsAddRow(isbn, cls, text) {
   qsRecent.unshift({ isbn, cls, text });
   qsRecent = qsRecent.slice(0, 8);
@@ -385,14 +454,14 @@ async function qsHandleCode(code) {
   qsSeen.set(clean, now);
 
   if (!isValidIsbn(clean)) {
-    qsFlash("err"); beepErr();
+    qsFlash("err"); beepErr(); qsToast("err", "Pole ISBN", "See vöötkood pole raamatukood");
     qsAddRow(clean || "(tundmatu)", "err", "pole ISBN");
     return;
   }
 
   // Duplikaat kohalikus mälus? (kiireim kontroll, väldib serveri edasi-tagasi käiku)
   if (books.some(b => b.isbn === clean)) {
-    qsFlash("dup"); beepDup();
+    qsFlash("dup"); beepDup(); qsToast("dup", "Juba olemas", "See raamat on riiulis");
     qsAddRow(clean, "dup", "juba riiulis");
     return;
   }
@@ -403,12 +472,12 @@ async function qsHandleCode(code) {
   const { data, error } = await supa.from("raamat").insert(rec).select().single();
   if (error) {
     if (error.code === "23505") {
-      qsFlash("dup"); beepDup();
+      qsFlash("dup"); beepDup(); qsToast("dup", "Juba olemas", "See raamat on riiulis");
       qsAddRow(clean, "dup", "juba riiulis");
       // kui teine seade oli lisanud, uuenda oma kohalikku vaadet
       await load();
     } else {
-      qsFlash("err"); beepErr();
+      qsFlash("err"); beepErr(); qsToast("err", "Viga", "Salvestamine ebaõnnestus");
       qsAddRow(clean, "err", "salvestus ebaõnnestus");
       console.error(error);
     }
@@ -419,8 +488,10 @@ async function qsHandleCode(code) {
   books.push(data);          // hoia kohalikult sünkroonis, et järgmine skann tunneks duplikaadi
   qsCount += 1;
   $("qs-count").textContent = qsCount;
-  qsFlash("ok"); beepOk();
+  qsFlash("ok"); beepOk(); qsToast("ok", "Lisatud", "Raamat on riiulis");
   qsAddRow(clean, "ok", "lisatud");
+  // Rikastamine taustal — ei blokeeri järgmist skanni
+  enrichBook(data);
 }
 
 async function startQuickScan() {
@@ -450,5 +521,59 @@ function stopQuickScan() {
 $("quickadd").addEventListener("click", startQuickScan);
 $("qs-close").addEventListener("click", stopQuickScan);
 $("quickscan").addEventListener("click", (e) => { if (e.target.id === "quickscan") stopQuickScan(); });
+
+// ============================================================
+// TÄIDA PUUDUVAD — käib üle kõigi ISBN-iga, aga andmeteta kirjete
+// ja rikastab need järjest. Väike paus, et allikaid mitte üle koormata.
+// ============================================================
+let fmRunning = false;
+let fmStop = false;
+const FM_PAUSE_MS = 400;
+
+function needsEnrich(b) {
+  if (!b.isbn) return false;                        // ilma ISBN-ita ei saa rikastada
+  return (!b.pealkiri || b.pealkiri === PLACEHOLDER_TITLE) || !b.autor;
+}
+
+async function fillMissing() {
+  if (fmRunning) return;
+  const todo = books.filter(needsEnrich);
+  if (todo.length === 0) {
+    $("meta").textContent = "Kõigil ISBN-iga raamatutel on andmed olemas.";
+    return;
+  }
+  fmRunning = true; fmStop = false;
+  show($("fm-bar"));
+  $("fillmissing").disabled = true;
+  let done = 0, filled = 0, notfound = 0;
+
+  for (const row of todo) {
+    if (fmStop) break;
+    // kasuta kohalikku värskeimat versiooni (võib olla vahepeal muutunud)
+    const current = books.find((x) => x.id === row.id) || row;
+    if (!needsEnrich(current)) { done++; continue; }
+    const res = await enrichBook(current);
+    if (res === "täidetud") filled++;
+    else if (res === "ei leitud") notfound++;
+    done++;
+    const pct = Math.round((done / todo.length) * 100);
+    $("fm-fill").style.width = pct + "%";
+    $("fm-text").textContent = `${done} / ${todo.length} · täidetud ${filled}${notfound ? ` · ei leitud ${notfound}` : ""}`;
+    await new Promise((r) => setTimeout(r, FM_PAUSE_MS));
+  }
+
+  fmRunning = false;
+  $("fillmissing").disabled = false;
+  $("fm-text").textContent = fmStop
+    ? `Peatatud. Täidetud ${filled}${notfound ? `, ei leitud ${notfound}` : ""}.`
+    : `Valmis. Täidetud ${filled} raamatut${notfound ? `, ${notfound} jäi leidmata` : ""}.`;
+  // jäta riba veel hetkeks nähtavale, siis peida
+  setTimeout(() => { if (!fmRunning) hide($("fm-bar")); }, 4000);
+  fillFilterOptions();
+  render();
+}
+
+$("fillmissing").addEventListener("click", fillMissing);
+$("fm-stop").addEventListener("click", () => { fmStop = true; });
 
 // ---- käivitus ---- (autentimist käivitab onAuthStateChange INITIAL_SESSION sündmusega automaatselt)
